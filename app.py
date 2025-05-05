@@ -22,7 +22,7 @@ last_fps_time = time.time()
 API_KEY = "P3zgdw1MMQvDEtWuLYlq"
 
 def my_sink(result, video_frame):
-    global latest_frame
+    global latest_frame, latest_predictions
 
     # Always update frame for smoother display
     if result.get("output_image"):
@@ -31,6 +31,7 @@ def my_sink(result, video_frame):
 
     # Process detection predictions
     detection_preds = result.get("detection_predictions")
+    updated_preds = []
 
     if detection_preds and hasattr(detection_preds, 'xyxy') and len(detection_preds.xyxy) > 0:
         print("\n🔍 Detected Objects:")
@@ -41,9 +42,24 @@ def my_sink(result, video_frame):
 
         for i in range(len(boxes)):
             label = classes[i] if i < len(classes) else "unknown"
-            conf = round(float(confidences[i]) * 100, 1)
-            bbox = [round(float(coord), 1) for coord in boxes[i]]
-            print(f"- {label} ({conf}%) at {bbox}")
+            conf = float(confidences[i])
+            x1, y1, x2, y2 = [float(coord) for coord in boxes[i]]
+            bbox = [round(coord, 1) for coord in boxes[i]]
+            print(f"- {label} ({round(conf * 100, 1)}%) at {bbox}")
+
+            updated_preds.append({
+                "class": label,
+                "confidence": conf,
+                "bounding_box": {
+                    "x": x1,
+                    "y": y1,
+                    "width": x2 - x1,
+                    "height": y2 - y1
+                }
+            })
+
+    with lock:
+        latest_predictions = updated_preds
 
 def display_loop():
     global running, frame_count, fps, last_fps_time
@@ -61,13 +77,14 @@ def display_loop():
                     label = pred.get("class", "unknown")
                     conf = round(pred.get("confidence", 0) * 100, 1)
 
-                    x1, y1 = int(bbox.get("x", 0)), int(bbox.get("y", 0))
-                    w, h = int(bbox.get("width", 0)), int(bbox.get("height", 0))
+                    x1 = int(bbox.get("x", 0))
+                    y1 = int(bbox.get("y", 0))
+                    w = int(bbox.get("width", 0))
+                    h = int(bbox.get("height", 0))
                     x2, y2 = x1 + w, y1 + h
 
                     # Draw bounding box
                     cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    # Label with confidence
                     label_text = f"{label} ({conf}%)"
                     cv2.putText(frame, label_text, (x1, y1 - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
@@ -118,11 +135,11 @@ def main():
             api_key=API_KEY,
             workspace_name="adaptive-traffic-light-v2",
             workflow_id="detect-and-classify-2",
-            video_reference="http://10.66.7.22:8080/video",
-            max_fps=30,
+            video_reference="http://192.168.20.124:8080/video",
+            # video_reference=0,
+            max_fps=60,
             on_prediction=my_sink
         )
-
 
         # Start inference and display threads
         pipeline_thread = threading.Thread(target=run_pipeline, args=(pipeline,))
