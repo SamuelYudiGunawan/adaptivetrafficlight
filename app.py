@@ -135,7 +135,7 @@ def main():
             api_key=API_KEY,
             workspace_name="adaptive-traffic-light-v2",
             workflow_id="detect-and-classify-2",
-            video_reference="http://192.168.20.124:8080/video",
+            video_reference="http://10.68.14.208:8080/video",
             # video_reference=0,
             max_fps=60,
             on_prediction=my_sink
